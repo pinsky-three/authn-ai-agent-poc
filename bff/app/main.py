@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
 from .oidc import router as oidc_router
@@ -10,6 +11,10 @@ from .settings import settings
 from .types import SessionData
 
 app = FastAPI(title="BFF")
+
+# Add SessionMiddleware for OAuth state management
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+
 app.include_router(oidc_router)
 
 
