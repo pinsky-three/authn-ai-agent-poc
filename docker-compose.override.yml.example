@@ -1,0 +1,27 @@
+# Copy to docker-compose.override.yml for local development
+# This file adds volume mounts for hot-reloading during development
+
+version: "3.9"
+services:
+  bff:
+    volumes:
+      - ./bff/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+
+  agent:
+    volumes:
+      - ./agent/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
+
+  acme_api:
+    volumes:
+      - ./acme_api/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8082 --reload
+
+  authz:
+    volumes:
+      - ./authz/policy.rego:/policy/policy.rego
+
+  gateway:
+    volumes:
+      - ./gateway/envoy.yaml:/etc/envoy/envoy.yaml.template

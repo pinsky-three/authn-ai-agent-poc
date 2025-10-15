@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  bff:
+    build: ./bff
+    env_file: [.env]
+    ports: ["8080:8080"]
+    depends_on: [redis]
+
+  agent:
+    build: ./agent
+    env_file: [.env]
+    ports: ["8081:8081"]
+
+  acme_api:
+    build: ./acme_api
+    env_file: [.env]
+    ports: ["8082:8082"]
+
+  gateway:
+    build: ./gateway
+    env_file: [.env]
+    ports: ["8000:8000"]
+    depends_on: [acme_api, authz]
+
+  authz:
+    build: ./authz
+    ports: ["8181:8181"]
