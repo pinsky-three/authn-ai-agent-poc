@@ -53,11 +53,12 @@ static_resources:
                   uri: "http://authz:8181"
                   cluster: opa
                   timeout: 0.5s
-                path_prefix: "/v1/data/policy/allow"
+                path_prefix: "/v1/data/policy"
                 authorization_request:
-                  headers_to_add:
-                  - key: "x-envoy-authz-target"
-                    value: "acme"
+                  allowed_headers:
+                    patterns:
+                    - exact: "authorization"
+                    - exact: "cookie"
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
