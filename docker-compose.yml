@@ -1,30 +1,160 @@
+version: '3.8'
+
+networks:
+  poc-network:
+    driver: bridge
+
 services:
   redis:
     image: redis:7-alpine
+    container_name: poc-redis
+    networks: [poc-network]
     ports: ["6379:6379"]
-
-  bff:
-    build: ./bff
-    env_file: [.env]
-    ports: ["8080:8080"]
-    depends_on: [redis]
-
-  agent:
-    build: ./agent
-    env_file: [.env]
-    ports: ["8081:8081"]
-
-  acme_api:
-    build: ./acme_api
-    env_file: [.env]
-    ports: ["8082:8082"]
-
-  gateway:
-    build: ./gateway
-    env_file: [.env]
-    ports: ["8000:8000"]
-    depends_on: [acme_api, authz]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
 
   authz:
     build: ./authz
+    container_name: poc-authz
+    networks: [poc-network]
     ports: ["8181:8181"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bff:
+    build: ./bff
+    container_name: poc-bff
+    networks: [poc-network]
+    env_file: [.env]
+    ports: ["8080:8080"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  agent:
+    build: ./agent
+    container_name: poc-agent
+    networks: [poc-network]
+    env_file: [.env]
+    ports: ["8081:8081"]
+    depends_on:
+      authz:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OTEL_SERVICE_NAME=agent
+
+  acme_api:
+    build: ./acme_api
+    container_name: poc-acme-api
+    networks: [poc-network]
+    env_file: [.env]
+    ports: ["8082:8082"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    build: ./gateway
+    container_name: poc-gateway
+    networks: [poc-network]
+    env_file: [.env]
+    ports: ["8000:8000"]
+    depends_on:
+      acme_api:
+        condition: service_healthy
+      authz:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: poc-jaeger
+    networks: [poc-network]
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+  mock_cognito:
+    build: ./mock_cognito
+    container_name: poc-mock-cognito
+    networks: [poc-network]
+    ports:
+      - "9000:9000"
+    environment:
+      - PORT=9000
+      - JWT_SECRET=mock-jwt-secret-change-in-production
+      - JWT_ISSUER=http://mock-cognito:9000
+      - JWT_AUDIENCE=api://acme-api
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
